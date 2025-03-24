@@ -563,6 +563,7 @@
       "enum": "QUIET_TIME_TOGGLE",
       "md_fn": "quiet_time_toggle_get_app_info",
       "target_platforms": [
+        "tintin",
         "snowy",
         "spalding",
         "silk",
@@ -574,6 +575,7 @@
       "enum": "MOTION_BACKLIGHT_TOGGLE",
       "md_fn": "motion_backlight_toggle_get_app_info",
       "target_platforms": [
+        "tintin",
         "snowy",
         "spalding",
         "silk",
@@ -585,6 +587,7 @@
       "enum": "AIRPLANE_MODE_TOGGLE",
       "md_fn": "airplane_mode_toggle_get_app_info",
       "target_platforms": [
+        "tintin",
         "snowy",
         "spalding",
         "silk",
@@ -605,7 +608,8 @@
     {
       "id": -97,
       "enum": "SPORTS",
-      "md_fn": "sports_app_get_info"
+      "md_fn": "sports_app_get_info",
+      "ifdefs": ["!PLATFORM_TINTIN"]
     }
   ],
   "resource_apps": [
