@@ -275,6 +275,46 @@
       "file": "normal/snowy/images/battery_charging_icon.png"
     },
     {
+      "type": "pbi",
+      "name": "SYSTEM_FCC_MARK",
+      "file": "normal/snowy/images/system_fcc_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_KCC_MARK",
+      "file": "normal/snowy/images/system_kcc_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_CE_MARK",
+      "file": "normal/snowy/images/system_ce_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_WEEE_MARK",
+      "file": "normal/snowy/images/system_weee_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_R_MARK",
+      "file": "normal/snowy/images/system_r_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_T_MARK",
+      "file": "normal/snowy/images/system_t_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_AUS_RCM_MARK",
+      "file": "normal/silk/images/system_aus_rcm_mark.png"
+    },
+    {
+      "type": "pbi",
+      "name": "SYSTEM_NOM_NYCE_MARK",
+      "file": "normal/silk/images/system_nom_nyce_mark.png"
+    },
+    {
       "name": "GOTHIC_28_BOLD",
       "compress": "RLE4"
     },
