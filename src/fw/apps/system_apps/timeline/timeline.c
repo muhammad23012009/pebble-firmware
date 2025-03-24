@@ -53,8 +53,7 @@
 #define TIMELINE_PAST_UUID_INIT {0xDA, 0xAE, 0x36, 0x86, 0xBF, 0xF6, 0x4B, 0xA5, \
                                  0x92, 0x1B, 0x26, 0x2F, 0x84, 0x7B, 0xB6, 0xE8}
 
-#if PBL_ROUND || PLATFORM_TINTIN
-// Tintin looks funny with the dot animation, but it results in less code space usage
+#if PBL_ROUND
 #define ANIMATION_DOT 1
 #define ANIMATION_SLIDE 0
 #else
