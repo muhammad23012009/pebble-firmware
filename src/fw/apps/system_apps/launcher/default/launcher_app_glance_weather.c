@@ -33,6 +33,8 @@
 
 #include <stdio.h>
 
+#if !PLATFORM_TINTIN
+
 // Max size of the temperature and phrase displayed together
 #define WEATHER_APP_GLANCE_MAX_STRING_BUFFER_SIZE (WEATHER_SERVICE_MAX_SHORT_PHRASE_BUFFER_SIZE + 5)
 
@@ -190,3 +192,5 @@ LauncherAppGlance *launcher_app_glance_weather_create(const AppMenuNode *node) {
 
   return &structured_glance->glance;
 }
+
+#endif

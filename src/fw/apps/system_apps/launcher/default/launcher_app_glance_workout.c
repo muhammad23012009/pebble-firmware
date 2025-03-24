@@ -35,6 +35,8 @@
 
 #include <stdio.h>
 
+#if !PLATFORM_TINTIN
+
 #define MAX_SUBTITLE_BUFFER_SIZE (16)
 
 typedef struct LauncherAppGlanceWorkout {
@@ -216,3 +218,5 @@ LauncherAppGlance *launcher_app_glance_workout_create(const AppMenuNode *node) {
 
   return &structured_glance->glance;
 }
+
+#endif
