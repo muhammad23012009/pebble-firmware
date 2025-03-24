@@ -29,7 +29,7 @@
   // On watches with only 4MB of flash, the region will have a size of zero and be ignored by the
   // fileystem.
   #if defined(BOARD_V2_0) || defined(BOARD_V1_5) || defined(LARGE_SPI_FLASH)
-    #define BOARD_NOR_FLASH_SIZE 0x600000
+    #define BOARD_NOR_FLASH_SIZE 0x800000
   #else
     #define BOARD_NOR_FLASH_SIZE 0x400000
   #endif
