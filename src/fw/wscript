@@ -158,7 +158,7 @@ def _generate_memory_layout(bld):
     AppRamSize = collections.namedtuple('AppRamSize',
                                         'app_segment runtime_reserved')
     APP_RAM_SIZES = {
-        'aplite': AppRamSize(25952, 6820),
+        'aplite': AppRamSize(32 * 1024, 8 * 1024),
         'basalt': AppRamSize(66 * 1024, 30 * 1024),
         'chalk': AppRamSize(66 * 1024, 30 * 1024),
         # FIXME: The runtime_reserved size could be reduced for diorite
@@ -186,7 +186,7 @@ def _generate_memory_layout(bld):
     if bld.is_tintin():
         app_ram_size_2x = APP_RAM_SIZES['aplite']
         app_ram_size_3x = APP_RAM_SIZES['aplite']
-        app_ram_size_4x = APP_UNSUPPORTED
+        app_ram_size_4x = APP_RAM_SIZES['aplite']
         # We have a 128k continuous block of RAM.
         total_ram = (0x20000000, 128 * 1024)
     elif bld.is_snowy():
@@ -504,21 +504,6 @@ def _build_recovery(bld):
     _link_firmware(bld, sources)
 
 
-def _get_launcher_globs_to_exclude(bld):
-    system_launchers_root_path = 'apps/system_apps/launcher/'
-    legacy_launcher_glob = system_launchers_root_path + 'legacy/**'
-    default_launcher_glob = system_launchers_root_path + 'default/**'
-    launcher_globs_to_exclude = [legacy_launcher_glob, default_launcher_glob]
-
-    if bld.is_tintin():
-        launcher_glob_to_use = legacy_launcher_glob
-    else:
-        launcher_glob_to_use = default_launcher_glob
-
-    launcher_globs_to_exclude.remove(launcher_glob_to_use)
-    return launcher_globs_to_exclude
-
-
 def _build_normal(bld):
     # Generate timezone data
     olson_txt = bld.srcnode.make_node('resources/normal/base/tzdata/timezones_olson.txt')
@@ -566,7 +551,7 @@ def _build_normal(bld):
         else:
             excludes.append('apps/watch/tictoc/spalding')
 
-        if bld.is_cutts():
+        if bld.is_cutts() or bld.is_tintin():
             excludes.append('apps/watch/kickstart')
 
     source_dirs.extend(_get_mfg_paths(bld))
@@ -578,8 +563,6 @@ def _build_normal(bld):
             excludes.append('apps/demo_apps/vibe_score_demo.c')
     elif bld.env.PERFORMANCE_TESTS:
         source_dirs.append('apps/demo_apps/gfx_tests')
-
-    excludes.extend(_get_launcher_globs_to_exclude(bld))
 
     if not bld.capability('HAS_BUILTIN_HRM'):
         excludes.append('popups/ble_hrm/**')
