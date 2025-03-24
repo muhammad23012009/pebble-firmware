@@ -83,36 +83,6 @@
     },
     {
       "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_AIRPLANE_MODE",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_airplane_mode.png"
-    },
-    {
-      "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_CONNECTED",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_connected.png"
-    },
-    {
-      "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_DISCONNECTED",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_disconnected.png"
-    },
-    {
-      "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_DND",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_dnd.png"
-    },
-    {
-      "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_CALLS_ONLY",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_calls_only.png"
-    },
-    {
-      "type": "pbi",
-      "name": "CONNECTIVITY_BLUETOOTH_APP_ISSUES",
-      "file": "normal/tintin/images/launcher_connectivity/connectivity_bluetooth_app_issues.png"
-    },
-    {
-      "type": "pbi",
       "name": "TINTIN_LAUNCHER_BATTERY_5_PERCENT",
       "file": "normal/tintin/images/launcher_battery/battery_5_percent.png"
     },
@@ -300,69 +270,9 @@
       "file": "normal/base/images/Pebble_50x50_Generic_notification.svg"
     },
     {
-      "type": "pdc",
-      "name": "ACTIVITY_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "ACTIVITY_SMALL",
-      "file": "normal/base/images/Pebble_50x50_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "ACTIVITY_LARGE",
-      "file": "normal/base/images/Pebble_80x80_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "SLEEP_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "SLEEP_SMALL",
-      "file": "normal/base/images/Pebble_50x50_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "SLEEP_LARGE",
-      "file": "normal/base/images/Pebble_80x80_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "CALORIES_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "DISTANCE_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "DURATION_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "PACE_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "RUN_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "RUN_LARGE",
-      "file": "normal/base/images/Pebble_80x80_Generic_notification.svg"
-    },
-    {
-      "type": "pdc",
-      "name": "SMART_ALARM_TINY",
-      "file": "normal/base/images/Pebble_25x25_Generic_notification.svg"
+      "type": "png",
+      "name": "BATTERY_CHARGING_ICON",
+      "file": "normal/snowy/images/battery_charging_icon.png"
     },
     {
       "name": "GOTHIC_28_BOLD",
