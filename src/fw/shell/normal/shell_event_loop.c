@@ -167,6 +167,7 @@ void shell_event_loop_handle_event(PebbleEvent *e) {
       }
       return;
 
+#if !PLATFORM_TINTIN
     case PEBBLE_HEALTH_SERVICE_EVENT:
       workout_service_health_event_handler(&e->health_event);
       return;
@@ -197,6 +198,7 @@ void shell_event_loop_handle_event(PebbleEvent *e) {
       workout_service_workout_event_handler(workout_e);
       return;
     }
+#endif
     default:
       break; // don't care
   }
