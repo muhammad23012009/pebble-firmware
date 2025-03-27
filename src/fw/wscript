@@ -535,6 +535,7 @@ def _build_normal(bld):
     source_files = []
     excludes = []
 
+    excludes.append('apps/system_apps/launcher/legacy/**')
     source_dirs.append('apps/core_apps/**')
     if bld.env.NORMAL_SHELL == 'sdk':
         source_dirs.append('apps/sdk/**')
@@ -570,6 +571,7 @@ def _build_normal(bld):
     if bld.is_tintin():
         excludes.append('apps/system_apps/health/**')
         excludes.append('apps/system_apps/settings/settings_vibe_patterns.c')
+        excludes.append('apps/system_apps/send_text/**')
         excludes.append('apps/system_apps/weather/**')
         excludes.append('apps/system_apps/workout/**')
 
