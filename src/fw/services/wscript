@@ -23,6 +23,7 @@ def build(bld):
                 excludes.append('normal/activity/**')
                 excludes.append('normal/weather/**')
                 excludes.append('normal/voice/**')
+                excludes.append('normal/send_text_service.*')
                 excludes.append('normal/accessory/**')
                 excludes.append('prf/accessory/**')
                 excludes.append('common/compositor/default/**')
@@ -71,10 +72,10 @@ def build(bld):
         sources.extend(bld.path.ant_glob('*.c', excl=excludes))
 
         # This could really be based on what accel driver is in use
-        if bld.is_tintin():
-            accel_manager_to_remove = 'common/accel_manager.c'
-        else:
-            accel_manager_to_remove = 'legacy/accel_manager.c'
+        #if bld.is_tintin():
+        #    accel_manager_to_remove = 'common/accel_manager.c'
+        #else:
+        accel_manager_to_remove = 'legacy/accel_manager.c'
 
         sources = [x for x in sources if not x.abspath().endswith(accel_manager_to_remove)]
 
