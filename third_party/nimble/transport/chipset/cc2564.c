@@ -39,7 +39,9 @@ static bool ble_run_bts(const ResAppNum bts_file) {
   }
 
   PebbleTask task = pebble_task_get_current();
+#if CAPABILITY_HAS_MAPPABLE_FLASH
   resource_mapped_use(task);
+#endif
 
   const uint8_t *bts_data =
       resource_get_readonly_bytes(SYSTEM_APP, bts_file, &bts_len, true /* is_privileged */);
@@ -57,7 +59,9 @@ static bool ble_run_bts(const ResAppNum bts_file) {
     ble_queue_cmd(&command->opcode, false);
   }
 
+#if CAPABILITY_HAS_MAPPABLE_FLASH
   resource_mapped_release(task);
+#endif
 
   return true;
 }
