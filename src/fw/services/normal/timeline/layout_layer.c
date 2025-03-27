@@ -36,7 +36,9 @@ static const LayoutLayerConstructor s_layout_constructors[NumLayoutIds] = {
   [LayoutIdWeather] = weather_layout_create,
   [LayoutIdSports] = sports_layout_create,
   [LayoutIdAlarm] = alarm_layout_create,
+#if !PLATFORM_TINTIN
   [LayoutIdHealth] = health_layout_create,
+#endif
 };
 
 static const LayoutVerifier s_layout_verifiers[NumLayoutIds] = {
@@ -47,7 +49,9 @@ static const LayoutVerifier s_layout_verifiers[NumLayoutIds] = {
   [LayoutIdWeather] = weather_layout_verify,
   [LayoutIdSports] = sports_layout_verify,
   [LayoutIdAlarm] = alarm_layout_verify,
+#if !PLATFORM_TINTIN
   [LayoutIdHealth] = health_layout_verify,
+#endif
 };
 
 static const LayoutColors s_default_colors = {
