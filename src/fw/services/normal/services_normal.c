@@ -78,7 +78,10 @@ void services_normal_init(void) {
 
   notifications_init();
   alerts_init();
+#if !PLATFORM_TINTIN
   send_text_service_init();
+#endif
+
   protobuf_log_init();
 
 #if CAPABILITY_HAS_WEATHER
