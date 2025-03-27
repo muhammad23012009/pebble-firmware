@@ -61,8 +61,12 @@ board_capability_dicts = [
         'capabilities':
         {
             'HAS_APPLE_MFI',
+            'HAS_APP_GLANCES',
             'HAS_DEFECTIVE_FW_CRC',
+            'HAS_LAUNCHER4',
             'HAS_MAGNETOMETER',
+            'HAS_SDK_SHELL4',
+            'HAS_TIMELINE_PEEK',
         },
     },
     {
@@ -70,9 +74,13 @@ board_capability_dicts = [
         'capabilities':
         {
             'HAS_APPLE_MFI',
+            'HAS_APP_GLANCES',
             'HAS_DEFECTIVE_FW_CRC',
+            'HAS_LAUNCHER4',
             'HAS_LED',
             'HAS_MAGNETOMETER',
+            'HAS_SDK_SHELL4',
+            'HAS_TIMELINE_PEEK',
         },
     },
     {
