@@ -432,6 +432,7 @@ if bld.is_tintin():
         name='driver_flash',
         source=[
             'flash/flash_crc.c',
+            'flash/flash_erase.c',
             'flash/micron_n25q/cd_flash_driver.c',
             'flash/micron_n25q/flash.c',
             'flash/micron_n25q/flash_core.c',
