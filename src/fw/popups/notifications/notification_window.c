@@ -511,7 +511,9 @@ T_STATIC LayoutLayer *prv_get_layout_handler(SwapLayer *swap_layer, int8_t rel_p
   const LayoutId layout_id = (type == NotificationMobile) ? LayoutIdNotification : LayoutIdReminder;
   NotificationLayoutInfo layout_info = (NotificationLayoutInfo) {
     .item = item,
+    #if !PLATFORM_TINTIN
     .show_notification_timestamp = !prv_should_pop_due_to_inactivity()
+    #endif
   };
   const LayoutLayerConfig config = {
     .frame = &data->window.layer.bounds,
