@@ -167,6 +167,7 @@ extern DMARequest * const SHARP_SPI_TX_DMA;
 
 extern UARTDevice * const QEMU_UART;
 extern UARTDevice * const DBG_UART;
+extern UARTDevice * const BLUETOOTH_UART;
 
 extern I2CSlavePort * const I2C_LIS3DH;
 extern I2CSlavePort * const I2C_MFI;
