@@ -64,6 +64,23 @@ static uint8_t s_buffer_storage[50*sizeof(AccelRawData)]; // 400 bytes (~1s of d
 static void lis3dh_IRQ1_handler(bool *should_context_switch);
 static void lis3dh_IRQ2_handler(bool *should_context_switch);
 
+// STUBS
+uint32_t accel_get_sampling_interval()
+{
+  return 1000;
+}
+void accel_enable_shake_detection(bool enable)
+{}
+
+void accel_enable_double_tap_detection(bool enable)
+{}
+
+uint32_t accel_set_sampling_interval(uint32_t interval_us)
+{
+  return 0;
+}
+// STUBS
+
 static void prv_accel_configure_interrupts(void) {
   exti_configure_pin(BOARD_CONFIG_ACCEL.accel_ints[0], ExtiTrigger_Rising, lis3dh_IRQ1_handler);
   exti_configure_pin(BOARD_CONFIG_ACCEL.accel_ints[1], ExtiTrigger_Rising, lis3dh_IRQ2_handler);
@@ -461,7 +478,7 @@ static void prv_read_samples(void *data) {
     return;
   }
 
-  accel_manager_dispatch_data();
+  //accel_manager_dispatch_data();
 }
 
 uint64_t accel_get_latest_timestamp(void) {
@@ -527,7 +544,8 @@ void accel_remove_consumer(SharedCircularBufferClient *client) {
 //! @return The actual number of samples read
 uint32_t accel_consume_data(AccelRawData *data, SharedCircularBufferClient *client, uint32_t max_samples,
             uint16_t subsample_num, uint16_t subsample_den) {
-  uint16_t items_read;
+// TODO: Fix later
+/*  uint16_t items_read;
   PBL_ASSERTN(accel_running());
   lis3dh_lock();
   {
@@ -538,6 +556,8 @@ uint32_t accel_consume_data(AccelRawData *data, SharedCircularBufferClient *clie
   ACCEL_LOG_DEBUG("%"PRIu16" samples (from %"PRIu32" requested) were read for %p",
       items_read, max_samples, client);
   return (items_read);
+*/
+  return 0;
 }
 
 
@@ -565,7 +585,7 @@ static uint32_t prv_compute_delta_pos(AccelRawData *cur_pos, AccelRawData *last_
 
 // Return true if we are "idle". We check for no movement for at least the last hour (the analytics snapshot
 // position is updated once/hour).
-bool accel_is_idle(void) {
+/*bool accel_is_idle(void) {
   if (!s_is_idle) {
     return false;
   }
@@ -608,7 +628,7 @@ void analytics_external_collect_accel_xyz_delta(void) {
     s_last_analytics_position = accel_data;
     analytics_set(ANALYTICS_DEVICE_METRIC_ACCEL_XYZ_DELTA, delta, AnalyticsClient_System);
   }
-}
+}*/
 
 
 // Self Test
