@@ -118,12 +118,14 @@ typedef struct {
   RecognizerList recognizer_list;
 #endif
 
+#if CAPABILITY_HAS_JAVASCRIPT
   //! Potentially un-aligned w.r.t. JerryScript's requirements:
   uint8_t *rocky_runtime_context_buffer;
   //! Aligned w.r.t. JerryScript's requirements, pointing into rocky_runtime_context_buffer.
   RockyRuntimeContext *rocky_runtime_context;
 
   RockyMemoryAPIContext *rocky_memory_api_context;
+#endif
 
 #if CAPABILITY_HAS_APP_GLANCES
   AppGlance glance;
@@ -419,6 +421,7 @@ RecognizerList *app_state_get_recognizer_list(void) {
 }
 #endif
 
+#if CAPABILITY_HAS_JAVASCRIPT
 RockyRuntimeContext *app_state_get_rocky_runtime_context(void) {
   return s_app_state_ptr->rocky_runtime_context;
 }
@@ -440,6 +443,7 @@ RockyMemoryAPIContext *app_state_get_rocky_memory_api_context(void) {
 void app_state_set_rocky_memory_api_context(RockyMemoryAPIContext *context) {
   s_app_state_ptr->rocky_memory_api_context = context;
 }
+#endif
 
 ApplibInternalEventsInfo *app_state_get_applib_internal_events_info(void) {
   return &s_app_state_ptr->applib_internal_events_info;
