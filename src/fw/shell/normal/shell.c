@@ -29,20 +29,30 @@
 
 static const CompositorTransition *prv_get_watchface_compositor_animation(
     CompositorTransitionDirection direction) {
+#if !PLATFORM_TINTIN
   return PBL_IF_RECT_ELSE(compositor_shutter_transition_get(direction, WATCHFACE_SHUTTER_COLOR),
                           compositor_port_hole_transition_app_get(direction));
+#else
+  return compositor_app_slide_transition_get(direction == CompositorTransitionDirectionRight);
+#endif
 }
 
+#if !PLATFORM_TINTIN
 static const CompositorTransition *prv_get_health_compositor_animation(
     CompositorTransitionDirection direction) {
   return PBL_IF_RECT_ELSE(compositor_shutter_transition_get(direction, HEALTH_SHUTTER_COLOR),
                           compositor_port_hole_transition_app_get(direction));
 }
+#endif
 
 static const CompositorTransition *prv_get_action_compositor_animation(
     CompositorTransitionDirection direction) {
+#if !PLATFORM_TINTIN
   return PBL_IF_RECT_ELSE(compositor_shutter_transition_get(direction, ACTION_SHUTTER_COLOR),
                           NULL);
+#else
+  return compositor_app_slide_transition_get(direction == CompositorTransitionDirectionRight);
+#endif
 }
 
 const CompositorTransition *shell_get_watchface_compositor_animation(
@@ -55,8 +65,12 @@ const CompositorTransition *shell_get_watchface_compositor_animation(
 static const CompositorTransition *prv_app_launcher_transition_animation(
     CompositorTransitionDirection direction) {
   const bool app_is_destination = (direction == CompositorTransitionDirectionRight);
+#if !PLATFORM_TINTIN
   return PBL_IF_RECT_ELSE(compositor_launcher_app_transition_get(app_is_destination),
                           compositor_port_hole_transition_app_get(direction));
+#else
+  return compositor_app_slide_transition_get(app_is_destination);
+#endif
 }
 
 const CompositorTransition *shell_get_close_compositor_animation(AppInstallId current_app_id,
@@ -69,9 +83,11 @@ const CompositorTransition *shell_get_close_compositor_animation(AppInstallId cu
     if (current_app_id == APP_ID_LAUNCHER_MENU) {
       res = prv_get_watchface_compositor_animation(CompositorTransitionDirectionLeft);
       goto done;
+#if !PLATFORM_TINTIN
     } else if (current_app_id == APP_ID_HEALTH_APP) {
       res = prv_get_health_compositor_animation(CompositorTransitionDirectionDown);
       goto done;
+#endif
     } else {
       res = prv_get_action_compositor_animation(CompositorTransitionDirectionLeft);
       goto done;
@@ -100,15 +116,19 @@ const CompositorTransition *shell_get_open_compositor_animation(AppInstallId cur
       if (next_app_id == APP_ID_LAUNCHER_MENU) {
         res = prv_get_watchface_compositor_animation(CompositorTransitionDirectionRight);
         goto done;
+#if !PLATFORM_TINTIN
       } else if (next_app_id == APP_ID_HEALTH_APP) {
         res = prv_get_health_compositor_animation(CompositorTransitionDirectionUp);
         goto done;
+#endif
       }
+#if !PLATFORM_TINTIN
     } else if ((current_app_id == APP_ID_HEALTH_APP) &&
                app_install_get_entry_for_install_id(next_app_id, app_entry) &&
                app_install_entry_is_watchface(app_entry)) {
       res = prv_get_health_compositor_animation(CompositorTransitionDirectionDown);
       goto done;
+#endif
     }
   }
 

@@ -94,10 +94,14 @@ static void prv_launch_timeline(ClickRecognizerRef recognizer, void *data) {
 #if PBL_ROUND
   animation = compositor_dot_transition_timeline_get(is_future, timeline_is_destination);
 #else
+#if !PLATFORM_TINTIN
   const bool jump = (!uuid_is_invalid(&s_timeline_args.pin_id) && !timeline_peek_is_first_event());
   animation = jump ? compositor_peek_transition_timeline_get() :
                      compositor_slide_transition_timeline_get(is_future, timeline_is_destination,
                                                               timeline_peek_is_future_empty());
+#else
+  animation = false;
+#endif
 #endif
   prv_launch_app_via_button(&(AppLaunchEventConfig) {
     .id = APP_ID_TIMELINE,
