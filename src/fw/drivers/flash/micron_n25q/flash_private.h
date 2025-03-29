@@ -55,9 +55,11 @@ static const uint8_t FLASH_CMD_PAGE_PROGRAM = 0x02;
 static const uint8_t FLASH_CMD_ERASE_SUBSECTOR = 0x20;
 static const uint8_t FLASH_CMD_ERASE_SECTOR = 0xD8;
 static const uint8_t FLASH_CMD_ERASE_BULK = 0xC7;
+static const uint8_t FLASH_CMD_ERASE_SUSPEND = 0x75;
+static const uint8_t FLASH_CMD_ERASE_RESUME = 0x7A;
 static const uint8_t FLASH_CMD_DEEP_SLEEP = 0xB9;
 static const uint8_t FLASH_CMD_WAKE = 0xAB;
-static const uint8_t FLASH_CMD_DUMMY = 0xA9;
+static const uint8_t FLASH_CMD_DUMMY = 0xFF;
 static const uint8_t FLASH_CMD_WRITE_LOCK_REGISTER = 0xE5;
 static const uint8_t FLASH_CMD_READ_LOCK_REGISTER = 0xE8;
 static const uint8_t FLASH_CMD_READ_NONVOLATILE_CONFIG_REGISTER = 0xB5;
@@ -93,23 +95,25 @@ typedef enum N25QLockBit {
   // Bits 2-7 are reserved
 } N25QLockBit;
 
-// Method shared with flash.c and the core dump logic in core_dump.c
-void flash_hw_init(void);
-void assert_usable_state(void);
-void flash_lock(void);
-void flash_unlock(void);
-bool flash_is_enabled(void);
-void handle_sleep_when_idle_begin(void);
-void enable_flash_spi_clock(void);
-void disable_flash_spi_clock(void);
-void flash_start(void);
-void flash_start_cmd(void);
-void flash_end_cmd(void);
-uint8_t flash_send_and_receive_byte(uint8_t byte);
-void flash_write_enable(void);
-void flash_send_24b_address(uint32_t start_addr);
-uint8_t flash_read_next_byte(void);
-void flash_wait_for_write_bounded(volatile int cycles_to_wait);
-void flash_wait_for_write(void);
+void assert_usable_state();
+
+void flash_start_cmd();
+void flash_end_cmd();
+bool flash_is_enabled();
+
+bool prv_flash_sector_is_erased(uint32_t sector_addr, bool subsector);
+void prv_flash_start();
+void flash_hw_init();
+void flash_lock();
+void flash_unlock();
+void flash_write_enable();
+uint8_t flash_read_next_byte();
+uint8_t flash_send_and_receive_byte(uint8_t command);
+void handle_sleep_when_idle_begin();
+
+void enable_flash_spi_clock();
+void disable_flash_spi_clock();
+
+void flash_wait_for_write();
 bool check_whoami(uint32_t spi_flash_id);
-bool flash_is_whoami_correct(void);
+void flash_send_24b_address(uint32_t start_addr);

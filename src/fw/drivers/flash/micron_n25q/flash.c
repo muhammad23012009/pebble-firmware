@@ -21,6 +21,7 @@
 #include "board/board.h"
 #include "drivers/dma.h"
 #include "drivers/flash.h"
+#include "drivers/flash/flash_impl.h"
 #include "drivers/flash/micron_n25q/flash_private.h"
 #include "kernel/util/stop.h"
 #include "process_management/worker_manager.h"
@@ -33,6 +34,8 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+
+extern void system_reset();
 
 /*
  * Each peripheral has a dma channel / stream it works with
@@ -47,31 +50,10 @@ static const uint32_t FLASH_DATA_REGISTER_ADDR = (uint32_t)&(SPI1->DR);
 static DMA_Stream_TypeDef* FLASH_TX_DMA_STREAM = DMA2_Stream3;
 static const uint32_t FLASH_TX_DMA_CHANNEL = DMA_Channel_3;
 
-static uint32_t analytics_read_count;
-static uint32_t analytics_read_bytes_count;
-static uint32_t analytics_write_bytes_count;
+static uint32_t s_write_protect_start = 0;
+static uint32_t s_write_protect_end = 0;
 
-void analytics_external_collect_system_flash_statistics(void) {
-  // TODO: Add support back to tintin
-}
-
-void analytics_external_collect_app_flash_read_stats(void) {
-  analytics_set(ANALYTICS_APP_METRIC_FLASH_READ_COUNT, analytics_read_count, AnalyticsClient_App);
-  analytics_set(ANALYTICS_APP_METRIC_FLASH_READ_BYTES_COUNT, analytics_read_bytes_count, AnalyticsClient_App);
-  analytics_set(ANALYTICS_APP_METRIC_FLASH_WRITE_BYTES_COUNT, analytics_write_bytes_count, AnalyticsClient_App);
-
-  // The overhead cost of tracking whether each flash read was due to the foreground
-  // or background app is large, so the best we can do is to attribute to both of them
-  if (worker_manager_get_current_worker_md() != NULL) {
-    analytics_set(ANALYTICS_APP_METRIC_FLASH_READ_COUNT, analytics_read_count, AnalyticsClient_Worker);
-    analytics_set(ANALYTICS_APP_METRIC_FLASH_READ_BYTES_COUNT, analytics_read_bytes_count, AnalyticsClient_Worker);
-    analytics_set(ANALYTICS_APP_METRIC_FLASH_WRITE_BYTES_COUNT, analytics_write_bytes_count, AnalyticsClient_Worker);
-  }
-
-  analytics_read_count = 0;
-  analytics_read_bytes_count = 0;
-  analytics_write_bytes_count = 0;
-}
+static uint32_t s_flash_num_uses = 0;
 
 struct FlashState {
   bool enabled;
@@ -80,14 +62,6 @@ struct FlashState {
   PebbleMutex * mutex;
   SemaphoreHandle_t dma_semaphore;
 } s_flash_state;
-
-static void flash_deep_sleep_enter(void);
-static void flash_deep_sleep_exit(void);
-
-
-void assert_usable_state(void) {
-  PBL_ASSERTN(s_flash_state.mutex != 0);
-}
 
 static void enable_flash_dma_clock(void) {
   // TINTINHACK: Rather than update this file to use the new DMA driver, just rely on the fact that
@@ -172,8 +146,8 @@ void DMA2_Stream0_IRQHandler(void) {
   }
 }
 
-static void flash_deep_sleep_enter(void) {
-  assert_usable_state();
+status_t flash_impl_enter_low_power_mode(void) {
+  flash_impl_use();
 
   if (!s_flash_state.deep_sleep) {
     flash_start_cmd();
@@ -184,11 +158,15 @@ static void flash_deep_sleep_enter(void) {
     delay_us(5);
     s_flash_state.deep_sleep = true;
   }
+  flash_impl_release();
+
+  return S_SUCCESS;
 }
 
-static void flash_deep_sleep_exit(void) {
-  assert_usable_state();
+status_t flash_impl_exit_low_power_mode(void) {
+  //assert_usable_state();
 
+  flash_impl_use();
   if (s_flash_state.deep_sleep) {
     flash_start_cmd();
     flash_send_and_receive_byte(FLASH_CMD_WAKE);
@@ -200,30 +178,23 @@ static void flash_deep_sleep_exit(void) {
     delay_us(100);
     s_flash_state.deep_sleep = false;
   }
+  flash_impl_release();
+
+  return S_SUCCESS;
 }
 
 void handle_sleep_when_idle_begin(void) {
   if (s_flash_state.sleep_when_idle) {
-    flash_deep_sleep_exit();
+    flash_impl_exit_low_power_mode();
   }
 }
 
-void flash_power_down_for_stop_mode(void) {
-  if (s_flash_state.sleep_when_idle) {
-    if (s_flash_state.enabled) {
-      enable_flash_spi_clock();
-      flash_deep_sleep_enter();
-      disable_flash_spi_clock();
-    }
-  }
+FlashAddress flash_impl_get_sector_base_address(FlashAddress address) {
+  return address & SECTOR_ADDR_MASK;
 }
 
-void flash_power_up_after_stop_mode(void) {
-  // no need here as this platform doesn't support memory-mappable flash
-}
-
-uint32_t flash_get_sector_base_address(uint32_t addr) {
-  return addr & ~(SECTOR_SIZE_BYTES - 1);
+FlashAddress flash_impl_get_subsector_base_address(FlashAddress address) {
+  return address & SUBSECTOR_ADDR_MASK;
 }
 
 // This simply issues a command to read a specific register
@@ -250,6 +221,9 @@ static void prv_clear_flag_status_register(void) {
   flash_end_cmd();
 }
 
+// Public interface
+// From here on down, make sure you're taking the s_flash_state.mutex before doing anything to the SPI peripheral.
+
 /**
  * Write up to 1 page (256B) of data to flash. start_addr DOES NOT
  * need to be paged aligned. When writing into the middle of a page
@@ -258,15 +232,20 @@ static void prv_clear_flag_status_register(void) {
  * stored before the starting address within the page.
  *
  */
-static void flash_write_page(const uint8_t* buffer, uint32_t start_addr, uint16_t buffer_size) {
+int flash_impl_write_page_begin(const void* buffer, FlashAddress addr, size_t len) {
   // Ensure that we're not trying to write more data than a single page (256 bytes)
-  PBL_ASSERTN(buffer_size <= FLASH_PAGE_SIZE);
-  PBL_ASSERTN(buffer_size);
-  mutex_assert_held_by_curr_task(s_flash_state.mutex, true /* is_held */);
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Write data called! buffer is %p, address is %ld, size is %d", buffer, addr, len);
+  flash_impl_use();
+
+  uint8_t *data = (uint8_t*) buffer;
+  size_t buffer_size = len > FLASH_PAGE_SIZE ? FLASH_PAGE_SIZE : len;
+  len = buffer_size;
+
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Buffer size is now %d", buffer_size);
 
   // Writing a zero-length buffer is a no-op.
   if (buffer_size < 1) {
-    return;
+    return E_ERROR;
   }
 
   flash_write_enable();
@@ -274,106 +253,140 @@ static void flash_write_page(const uint8_t* buffer, uint32_t start_addr, uint16_
   flash_start_cmd();
 
   flash_send_and_receive_byte(FLASH_CMD_PAGE_PROGRAM);
-  flash_send_24b_address(start_addr);
+  flash_send_24b_address(addr);
 
-  while (buffer_size--) {
-    flash_send_and_receive_byte(*buffer);
-    buffer++;
+  while (len != 0) {
+    flash_send_and_receive_byte(*data);
+    data++;
+    len--;
   }
 
   flash_end_cmd();
-  flash_wait_for_write();
 
   prv_check_protection_flag();
+
+  flash_impl_release();
+
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Finished writing a page to flash!");
+  return buffer_size;
 }
 
-// Public interface
-// From here on down, make sure you're taking the s_flash_state.mutex before doing anything to the SPI peripheral.
+status_t flash_impl_get_write_status(void) {
+  flash_impl_use();
 
-void flash_enable_write_protection(void) {
+  uint8_t status_register = prv_flash_get_register(FLASH_CMD_READ_STATUS_REG);
+  uint8_t flag_status_register = prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG);
+  flash_impl_release();
+
+  if (status_register & N25QStatusBit_WriteInProgress)
+    return E_BUSY;
+  else if ((flag_status_register & N25QFlagStatusBit_ProgramSuspended))
+    return E_AGAIN;
+  else if (!(status_register & N25QStatusBit_WriteInProgress))
+    return S_SUCCESS;
+  else
+    return E_ERROR;
+}
+
+status_t flash_impl_erase_suspend(FlashAddress address)
+{
+  flash_impl_use();
+
+  // Check to see if we have a write in progress
+  uint8_t status_register = prv_flash_get_register(FLASH_CMD_READ_STATUS_REG);
+  if (!(status_register & N25QStatusBit_WriteInProgress))
+    return S_NO_ACTION_REQUIRED;
+
+  flash_start_cmd();
+  flash_send_and_receive_byte(FLASH_CMD_ERASE_SUSPEND);
+  flash_end_cmd();
+
+  uint8_t flags = prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG);
+
+  flash_impl_release();
+
+  if (flags & N25QFlagStatusBit_EraseSuspended)
+    return S_SUCCESS;
+
+  return E_ERROR;
+}
+
+status_t flash_impl_erase_resume(FlashAddress address)
+{
+  flash_impl_use();
+
+  uint8_t status_register = prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG);
+  if (!(status_register & N25QFlagStatusBit_EraseSuspended))
+    return S_NO_ACTION_REQUIRED;
+
+  flash_start_cmd();
+  flash_send_and_receive_byte(FLASH_CMD_ERASE_RESUME);
+  flash_end_cmd();
+
+  status_register = prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG);
+  flash_impl_release();
+
+  if (!(status_register & N25QFlagStatusBit_EraseSuspended))
+    return S_SUCCESS;
+
+  return E_ERROR;
+}
+
+void flash_impl_enable_write_protection(void) {
   return;
 }
 
-void flash_lock(void) {
-  mutex_lock(s_flash_state.mutex);
-}
-
-void flash_unlock(void) {
-  mutex_unlock(s_flash_state.mutex);
-}
-
-bool flash_is_enabled(void) {
-  return (s_flash_state.enabled);
-}
-
-void flash_init(void) {
-  if (s_flash_state.mutex != 0) {
-    return; // Already initialized.
-  }
-
-  s_flash_state.mutex = mutex_create();
+status_t flash_impl_init(bool coredump_mode) {
   vSemaphoreCreateBinary(s_flash_state.dma_semaphore);
-  flash_lock();
 
-  enable_flash_spi_clock();
+  flash_impl_use();
 
-  flash_start();
+  prv_flash_start();
 
   s_flash_state.enabled = true;
   s_flash_state.sleep_when_idle = false;
 
   // Assume that last time we shut down we were asleep. Come back out.
   s_flash_state.deep_sleep = true;
-  flash_deep_sleep_exit();
+  flash_impl_exit_low_power_mode();
 
   prv_clear_flag_status_register();
 
-  disable_flash_spi_clock();
-  flash_unlock();
+  flash_impl_release();
 
-  flash_whoami();
+  if (!coredump_mode)
+    flash_whoami();
 
-  PBL_LOG_VERBOSE("Detected SPI Flash Size: %u bytes", flash_get_size());
+  return S_SUCCESS;
 }
 
-void flash_stop(void) {
-  if (s_flash_state.mutex == NULL) {
-    return;
+status_t flash_impl_read_sync(void* buffer, FlashAddress start_addr, size_t len) {
+  PBL_LOG(LOG_LEVEL_ALWAYS, "read sync called! %p, %ld, %d", buffer, start_addr, len);
+  if (!len) {
+    return E_ERROR;
   }
 
-  flash_lock();
-  s_flash_state.enabled = false;
-  flash_unlock();
-}
-
-void flash_read_bytes(uint8_t* buffer, uint32_t start_addr, uint32_t buffer_size) {
-  if (!buffer_size) {
-    return;
-  }
-
-  assert_usable_state();
-
-  flash_lock();
 
   if (!s_flash_state.enabled) {
-    flash_unlock();
-    return;
+    return E_ERROR;
   }
 
-  analytics_read_count++;
-  analytics_read_bytes_count += buffer_size;
+  uint8_t *data = buffer;
   power_tracking_start(PowerSystemFlashRead);
 
-  enable_flash_spi_clock();
-  handle_sleep_when_idle_begin();
+  flash_impl_use();
+  //handle_sleep_when_idle_begin();
 
   flash_wait_for_write();
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Status register before starting was %d %d", prv_flash_get_register(FLASH_CMD_READ_STATUS_REG), prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG));
 
   flash_start_cmd();
 
   flash_send_and_receive_byte(FLASH_CMD_READ);
   flash_send_24b_address(start_addr);
 
+  flash_read_next_byte();
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Status register after writing address was %d %d", prv_flash_get_register(FLASH_CMD_READ_STATUS_REG), prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG));
   // There is delay associated with setting up the stm32 dma, using FreeRTOS
   // sempahores, handling ISRs, etc. Thus for short reads, the cost of using
   // DMA is far more expensive than the read being performed. Reads greater
@@ -383,93 +396,49 @@ void flash_read_bytes(uint8_t* buffer, uint32_t start_addr, uint32_t buffer_size
   const uint32_t num_reads_dma_cutoff = 34;
 #else
   // We are disabling DMA reads when running under QEMU for now because they are not reliable.
-  const uint32_t num_reads_dma_cutoff = buffer_size + 1;
+  const uint32_t num_reads_dma_cutoff = len + 1;
 #endif
-  if (buffer_size < num_reads_dma_cutoff) {
-    while (buffer_size--) {
-      *buffer = flash_read_next_byte();
-      buffer++;
+  if (len < num_reads_dma_cutoff) {
+    while (len--) {
+      *data = flash_read_next_byte();
+      PBL_LOG(LOG_LEVEL_ALWAYS, "Printing status register %d %d", prv_flash_get_register(FLASH_CMD_READ_STATUS_REG), prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG));
+      PBL_LOG(LOG_LEVEL_ALWAYS, "Read a byte! %d", *data);
+      data++;
+      PBL_LOG(LOG_LEVEL_ALWAYS, "data pointer is now %p", data);
     }
   } else {
     enable_flash_dma_clock();
-    setup_dma_read(buffer, buffer_size);
+    setup_dma_read(buffer, len);
     do_dma_transfer();
     disable_flash_dma_clock();
   }
 
+  PBL_LOG(LOG_LEVEL_ALWAYS, "read data from SPI, first two bytes are as follows: %d %d", *data, data[1]);
+
   flash_end_cmd();
 
-  disable_flash_spi_clock();
+  flash_impl_release();
 
   power_tracking_stop(PowerSystemFlashRead);
-  flash_unlock();
+
+  return S_SUCCESS;
 }
 
-void flash_write_bytes(const uint8_t* buffer, uint32_t start_addr, uint32_t buffer_size) {
-  if (!buffer_size) {
-    return;
-  }
-
-  PBL_ASSERTN((start_addr + buffer_size) <= BOARD_NOR_FLASH_SIZE);
-
-  assert_usable_state();
-
-  flash_lock();
-
-  if (!s_flash_state.enabled) {
-    flash_unlock();
-    return;
-  }
-
-  analytics_write_bytes_count += buffer_size;
-  power_tracking_start(PowerSystemFlashWrite);
-
-  enable_flash_spi_clock();
-  handle_sleep_when_idle_begin();
-
-  uint32_t first_page_available_bytes = FLASH_PAGE_SIZE - (start_addr % FLASH_PAGE_SIZE);
-  uint32_t bytes_to_write = MIN(buffer_size, first_page_available_bytes);
-
-  if (first_page_available_bytes < FLASH_PAGE_SIZE) {
-    PBL_LOG_VERBOSE("Address is not page-aligned; first write will be %"PRId32"B at address 0x%"PRIX32,
-      first_page_available_bytes, start_addr);
-  }
-
-  while (bytes_to_write) {
-    flash_write_page(buffer, start_addr, bytes_to_write);
-
-    start_addr += bytes_to_write;
-    buffer += bytes_to_write;
-    buffer_size -= bytes_to_write;
-    bytes_to_write = MIN(buffer_size, FLASH_PAGE_SIZE);
-  }
-
-  disable_flash_spi_clock();
-
-  power_tracking_stop(PowerSystemFlashWrite);
-  flash_unlock();
-}
-
-void flash_erase_subsector_blocking(uint32_t subsector_addr) {
-  assert_usable_state();
-
-  PBL_LOG(LOG_LEVEL_DEBUG, "Erasing subsector 0x%"PRIx32" (0x%"PRIx32" - 0x%"PRIx32")",
+status_t flash_impl_erase_subsector_begin(FlashAddress subsector_addr) {
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Erasing subsector 0x%"PRIx32" (0x%"PRIx32" - 0x%"PRIx32")",
       subsector_addr,
       subsector_addr & SUBSECTOR_ADDR_MASK,
       (subsector_addr & SUBSECTOR_ADDR_MASK) + SUBSECTOR_SIZE_BYTES);
 
-  flash_lock();
-
   if (!s_flash_state.enabled) {
-    flash_unlock();
-    return;
+    return E_ERROR;
   }
 
   analytics_inc(ANALYTICS_APP_METRIC_FLASH_SUBSECTOR_ERASE_COUNT, AnalyticsClient_CurrentTask);
   power_tracking_start(PowerSystemFlashErase);
 
-  enable_flash_spi_clock();
-  handle_sleep_when_idle_begin();
+  flash_impl_use();
+  //handle_sleep_when_idle_begin();
 
   flash_write_enable();
 
@@ -482,35 +451,27 @@ void flash_erase_subsector_blocking(uint32_t subsector_addr) {
 
   prv_check_protection_flag();
 
-  disable_flash_spi_clock();
+  flash_impl_release();
 
   power_tracking_stop(PowerSystemFlashErase);
-  flash_unlock();
+
+  return S_SUCCESS;
 }
 
-void flash_erase_sector_blocking(uint32_t sector_addr) {
-  assert_usable_state();
-
+status_t flash_impl_erase_sector_begin(FlashAddress sector_addr) {
   PBL_LOG(LOG_LEVEL_DEBUG, "Erasing sector 0x%"PRIx32" (0x%"PRIx32" - 0x%"PRIx32")",
           sector_addr,
           sector_addr & SECTOR_ADDR_MASK,
           (sector_addr & SECTOR_ADDR_MASK) + SECTOR_SIZE_BYTES);
 
-  if (flash_sector_is_erased(sector_addr)) {
+  if (prv_flash_sector_is_erased(sector_addr, false)) {
     PBL_LOG(LOG_LEVEL_DEBUG, "Sector %#"PRIx32" already erased", sector_addr);
-    return;
-  }
-
-  flash_lock();
-
-  if (!flash_is_enabled()) {
-    flash_unlock();
-    return;
+    return S_NO_ACTION_REQUIRED;
   }
 
   power_tracking_start(PowerSystemFlashErase);
 
-  enable_flash_spi_clock();
+  flash_impl_use();
   handle_sleep_when_idle_begin();
 
   flash_write_enable();
@@ -524,10 +485,51 @@ void flash_erase_sector_blocking(uint32_t sector_addr) {
 
   prv_check_protection_flag();
 
-  disable_flash_spi_clock();
+  flash_impl_release();
 
   power_tracking_stop(PowerSystemFlashErase);
-  flash_unlock();
+
+  return S_SUCCESS;
+}
+
+status_t flash_impl_get_erase_status(void) {
+  flash_impl_use();
+
+  uint8_t status_register = prv_flash_get_register(FLASH_CMD_READ_FLAG_STATUS_REG);
+
+  flash_impl_release();
+
+  PBL_LOG(LOG_LEVEL_ALWAYS, "Here is flag status! %d %d %d", status_register, prv_flash_get_register(FLASH_CMD_READ_STATUS_REG), status_register & N25QFlagStatusBit_EraseStatus);
+
+  if ((status_register & N25QFlagStatusBit_EraseStatus) == 0)
+    return S_SUCCESS;
+
+  else if ((status_register & N25QFlagStatusBit_DeviceReady) == 0)
+    return E_BUSY;
+
+  else if (status_register & N25QFlagStatusBit_EraseStatus)
+    return E_ERROR;
+
+  else if (status_register & N25QFlagStatusBit_EraseSuspended)
+    return E_AGAIN;
+
+  return E_ERROR;
+}
+
+status_t flash_impl_blank_check_subsector(FlashAddress subsector_addr) {
+  // TODO: handle ongoing operations
+
+  if (prv_flash_sector_is_erased(subsector_addr, true))
+    return S_TRUE;
+
+  return S_FALSE;
+}
+
+status_t flash_impl_blank_check_sector(FlashAddress sector_addr) {
+  if (prv_flash_sector_is_erased(sector_addr, false))
+    return S_TRUE;
+
+  return S_FALSE;
 }
 
 // It is dangerous to leave this built in by default.
@@ -566,44 +568,6 @@ void flash_erase_bulk(void) {
 }
 #endif
 
-void flash_sleep_when_idle(bool enable) {
-  if (enable == s_flash_state.sleep_when_idle) {
-    return;
-  }
-
-  flash_lock();
-
-  if (!s_flash_state.enabled) {
-    flash_unlock();
-    return;
-  }
-
-  enable_flash_spi_clock();
-
-  s_flash_state.sleep_when_idle = enable;
-
-  if (enable) {
-    if (!s_flash_state.deep_sleep) {
-      flash_deep_sleep_enter();
-    }
-  } else {
-    if (s_flash_state.deep_sleep) {
-      flash_deep_sleep_exit();
-    }
-  }
-
-  disable_flash_spi_clock();
-  flash_unlock();
-}
-
-bool flash_get_sleep_when_idle(void) {
-  bool result;
-  flash_lock();
-  result = s_flash_state.deep_sleep;
-  flash_unlock();
-  return result;
-}
-
 void debug_flash_dump_registers(void) {
 #ifdef PBL_LOG_ENABLED
   flash_lock();
@@ -635,24 +599,7 @@ void debug_flash_dump_registers(void) {
 #endif
 }
 
-bool flash_is_initialized(void) {
-  return (s_flash_state.mutex != 0);
-}
-
-size_t flash_get_size(void) {
-  uint32_t spi_flash_id = flash_whoami();
-  if (!check_whoami(spi_flash_id)) {
-    // Zero bytes is the best size to report if the flash is corrupted
-    return 0;
-  }
-
-  // capcity_megabytes = 2^(capacity in whoami)
-  uint32_t capacity = spi_flash_id & 0x000000FF;
-  // get the capacity of the flash in bytes
-  return 1 << capacity;
-}
-
-void flash_prf_set_protection(bool do_protect) {
+/*void flash_prf_set_protection(bool do_protect) {
   assert_usable_state();
 
   flash_lock();
@@ -681,20 +628,68 @@ void flash_prf_set_protection(bool do_protect) {
   disable_flash_spi_clock();
 
   flash_unlock();
+}*/
+
+status_t flash_impl_write_protect(FlashAddress start_addr, FlashAddress end_addr) {
+  flash_impl_use();
+
+  s_write_protect_start = start_addr;
+  s_write_protect_end = end_addr;
+
+  flash_write_enable();
+  for (uint32_t addr = start_addr; addr < end_addr; addr += SECTOR_SIZE_BYTES) {
+    flash_start_cmd();
+    flash_send_and_receive_byte(FLASH_CMD_WRITE_LOCK_REGISTER);
+    flash_send_24b_address(addr);
+    flash_send_and_receive_byte(N25QLockBit_SectorWriteLock);
+    flash_end_cmd();
+  }
+
+  flash_impl_release();
+
+  return S_SUCCESS;
 }
 
-void flash_erase_sector(uint32_t sector_addr,
-                        FlashOperationCompleteCb on_complete_cb,
-                        void *context) {
-  // TODO: implement nonblocking erase
-  flash_erase_sector_blocking(sector_addr);
-  on_complete_cb(context, S_SUCCESS);
+status_t flash_impl_unprotect(void) {
+  PBL_ASSERT(s_write_protect_start != 0 && s_write_protect_end != 0, "FUCK");
+  flash_impl_use();
+
+  for (uint32_t addr = s_write_protect_start; addr < s_write_protect_end; addr += SECTOR_SIZE_BYTES) {
+    flash_start_cmd();
+    flash_send_and_receive_byte(FLASH_CMD_WRITE_LOCK_REGISTER);
+    flash_send_24b_address(addr);
+    flash_send_and_receive_byte(0);
+    flash_end_cmd();
+  }
+  s_write_protect_start = s_write_protect_end = 0;
+  flash_impl_release();
+
+  return S_SUCCESS;
 }
 
-void flash_erase_subsector(uint32_t sector_addr,
-                           FlashOperationCompleteCb on_complete_cb,
-                           void *context) {
-  // TODO: implement nonblocking erase
-  flash_erase_subsector_blocking(sector_addr);
-  on_complete_cb(context, S_SUCCESS);
+uint32_t flash_impl_get_typical_sector_erase_duration_ms(void) {
+  return 150;
+}
+
+uint32_t flash_impl_get_typical_subsector_erase_duration_ms(void) {
+  return 50;
+}
+
+// TODO: add support for idling GPIOs
+void flash_impl_use(void) {
+  if (s_flash_num_uses == 0) {
+    enable_flash_spi_clock();
+  }
+  s_flash_num_uses++;
+}
+
+void flash_impl_release_many(uint32_t num_locks) {
+  PBL_ASSERTN(s_flash_num_uses >= num_locks);
+  s_flash_num_uses -= num_locks;
+  if (s_flash_num_uses == 0) {
+    disable_flash_spi_clock();
+  }
+}
+void flash_impl_release(void) {
+  flash_impl_release_many(1);
 }
