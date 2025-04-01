@@ -23,7 +23,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "drivers/flash/flash_impl.h"
 #include "drivers/flash/micron_n25q/flash_private.h"
 
 void enable_flash_spi_clock(void) {
@@ -84,7 +83,7 @@ void flash_hw_init(void) {
   SPI_Cmd(FLASH_SPI, ENABLE);
 }
 
-void prv_flash_start(void) {
+void flash_start(void) {
   periph_config_acquire_lock();
   gpio_use(FLASH_GPIO);
 
@@ -171,10 +170,11 @@ void flash_wait_for_write(void) {
   flash_end_cmd();
 }
 
-bool prv_flash_sector_is_erased(uint32_t sector_addr, bool subsector) {
+bool flash_sector_is_erased(uint32_t sector_addr) {
   const uint32_t bufsize = 128;
   uint8_t buffer[bufsize];
-  for (uint32_t offset = 0; offset < (subsector ? SUBSECTOR_SIZE_BYTES : SECTOR_SIZE_BYTES); offset += bufsize) {
+  sector_addr &= SECTOR_ADDR_MASK;
+  for (uint32_t offset = 0; offset < SECTOR_SIZE_BYTES; offset += bufsize) {
     flash_read_bytes(buffer, sector_addr + offset, bufsize);
     for (uint32_t i = 0; i < bufsize; i++) {
       if (buffer[i] != 0xff) {
@@ -186,7 +186,16 @@ bool prv_flash_sector_is_erased(uint32_t sector_addr, bool subsector) {
 }
 
 uint32_t flash_whoami(void) {
-  flash_impl_use();
+  assert_usable_state();
+
+  flash_lock();
+
+  if (!flash_is_enabled()) {
+    flash_unlock();
+    return 0;
+  }
+
+  enable_flash_spi_clock();
   handle_sleep_when_idle_begin();
 
   flash_wait_for_write_bounded(64000000);
@@ -198,7 +207,8 @@ uint32_t flash_whoami(void) {
   uint32_t capacity = flash_read_next_byte();
   flash_end_cmd();
 
-  flash_impl_release();
+  disable_flash_spi_clock();
+  flash_unlock();
 
   return ((manufacturer << 16) | (type << 8) | capacity);
 }
@@ -211,5 +221,8 @@ bool check_whoami(uint32_t spi_flash_id) {
 bool flash_is_whoami_correct(void) {
   uint32_t spi_flash_id = flash_whoami();
   return check_whoami(spi_flash_id);
+}
+
+void flash_switch_mode(FlashModeType mode) {
 }
 

@@ -431,13 +431,11 @@ if bld.is_tintin():
     bld.objects(
         name='driver_flash',
         source=[
-            'flash/micron_n25q/cd_flash_driver.c',
-            'flash/flash_api.c',
             'flash/flash_crc.c',
             'flash/flash_erase.c',
-            'flash/nvram_bkp.c',
-            'flash/micron_n25q/flash_core.c',
+            'flash/micron_n25q/cd_flash_driver.c',
             'flash/micron_n25q/flash.c',
+            'flash/micron_n25q/flash_core.c',
         ],
         use=[
             'driver_dma',
@@ -449,7 +447,6 @@ if bld.is_tintin():
             'root_includes',
             'stm32_stdlib',
         ],
-        cflags="-fno-lto",
     )
 elif bld.is_silk():
     bld.objects(
