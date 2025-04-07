@@ -848,7 +848,7 @@ def size_resources(ctx):
     elif ctx.env.MICRO_FAMILY == 'NRF52840':
         max_size = 512 * 1024
     else:
-        max_size = 256 * 1024
+        max_size = 320 * 1024
 
     pbpack_actual_size = os.path.getsize(pbpack_path.path_from(ctx.path))
     bytes_free = max_size - pbpack_actual_size
@@ -1036,7 +1036,7 @@ def _bundle_resourceless_fw(ctx, fw_path, fw_type):
     # come with a corresponding resource pack. No one will ever read these though so who cares
     # what the content is.
     with tempfile.NamedTemporaryFile(delete=False) as dummy_pbpack:
-        dummy_pbpack.write('DUMMY')
+        dummy_pbpack.write(b'DUMMY')
         pbpack_path = dummy_pbpack.name
 
     try:
@@ -1164,7 +1164,7 @@ def qemu_image_spi(ctx):
         resources_begin = 0x380000
         image_size = 0x1000000
     else:
-        resources_begin = 0x280000
+        resources_begin = 0x270000
         image_size = 0x400000
 
     spi_flash_path = _create_spi_flash_image(ctx, 'qemu_spi_flash.bin')
