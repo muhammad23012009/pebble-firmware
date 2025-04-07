@@ -21,6 +21,7 @@
 #include "board/board.h"
 #include "drivers/dma.h"
 #include "drivers/flash.h"
+#include "drivers/flash/flash_internal.h"
 #include "drivers/flash/micron_n25q/flash_private.h"
 #include "kernel/util/stop.h"
 #include "process_management/worker_manager.h"
@@ -313,6 +314,7 @@ void flash_init(void) {
 
   s_flash_state.mutex = mutex_create();
   vSemaphoreCreateBinary(s_flash_state.dma_semaphore);
+  flash_erase_init();
   flash_lock();
 
   enable_flash_spi_clock();
