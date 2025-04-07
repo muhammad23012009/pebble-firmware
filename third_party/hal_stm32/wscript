@@ -33,6 +33,7 @@ def build(bld):
                           'stm32-sdk/stm32f7haxx_stdperiph']
 
     bld.stlib(source=micro_sources,
+              cflags='-fno-lto',
               target='stm32_stdlib',
               use=['cmsis_core', 'pblibc'],
               includes=micro_includes,
