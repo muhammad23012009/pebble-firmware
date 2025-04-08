@@ -16,6 +16,7 @@
 
 #include "board/board.h"
 #include "drivers/gpio.h"
+#include "drivers/clocksource.h"
 #include "kernel/util/sleep.h"
 #include "resource/resource.h"
 #include "resource/resource_ids.auto.h"
@@ -67,6 +68,9 @@ static bool ble_run_bts(const ResAppNum bts_file) {
 }
 
 void ble_chipset_init(void) {
+  clocksource_MCO1_enable(true);
+  psleep(2);
+
   gpio_output_init(&BOARD_CONFIG_BT_COMMON.reset, GPIO_OType_PP, GPIO_Speed_25MHz);
   gpio_output_set(&BOARD_CONFIG_BT_COMMON.reset, true);
   psleep(100);
